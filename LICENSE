@@ -20,6 +20,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Attribution: the rain engine is a JavaScript port of matrixrain.c v8 by
-JamesBook-416 (Win32 GDI screensaver, 2026). All visuals are procedural;
+Attribution: the rain engine is the author's own JavaScript remake of his
+college final-project screensaver (C / Win32 GDI, 2026). All visuals are procedural;
 this package ships no third-party artwork.

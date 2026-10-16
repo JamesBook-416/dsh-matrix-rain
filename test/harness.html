@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>matrix-rain engine harness</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+  #rain { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #hud {
+    position: fixed; left: 10px; bottom: 8px; z-index: 10;
+    font: 12px Consolas, monospace; color: #00ff41; opacity: .8;
+    background: rgba(0, 20, 8, .55); padding: 4px 8px; border: 1px solid #0a5;
+  }
+  .panel {
+    position: fixed; right: 10px; top: 10px; z-index: 10; width: 280px;
+    background: rgba(10, 25, 15, .82); border: 1px solid #0a5; padding: 10px;
+    color: #9f9; font: 12px/1.6 Consolas, monospace;
+  }
+  .panel label { display: block; margin: 4px 0; }
+  .demo-banner {
+    position: fixed; left: 50%; top: 12px; transform: translateX(-50%);
+    color: #fff; font: bold 14px Consolas, monospace; z-index: 10;
+    background: rgba(0,0,0,.5); padding: 6px 14px; border: 1px solid #0a5;
+  }
+</style>
+</head>
+<body>
+<canvas id="rain"></canvas>
+<div class="panel" id="controls">
+  <b>MATRIX RAIN HARNESS</b>
+  <label>色板
+    <select id="palette">
+      <option value="classic-green">classic-green</option>
+      <option value="cyber-cyan">cyber-cyan</option>
+      <option value="violet-rain">violet-rain</option>
+      <option value="mono">mono</option>
+    </select>
+  </label>
+  <label>速度 <input type="range" id="speed" min="16" max="80" value="40"></label>
+  <label>密度 <input type="range" id="density" min="15" max="100" value="100"></label>
+  <label>字号 <input type="range" id="scale" min="70" max="160" value="100"></label>
+  <label><input type="checkbox" id="interaction" checked> 交互(波+光晕)</label>
+  <label>渲染 <select id="mode"><option value="background">background</option><option value="overlay">overlay</option></select></label>
+</label>
+</div>
+<div id="hud">booting…</div>
+<script src="../src/engine.js"></script>
+<script>
+(function () {
+  var qs = new URLSearchParams(location.search);
+  var canvas = document.getElementById("rain");
+  var engine = MatrixRainEngine.createEngine({
+    canvas: canvas,
+    mode: qs.get("mode") === "overlay" ? "overlay" : "background",
+    palette: qs.get("palette") || "classic-green",
+  });
+  window.__engine = engine;
+
+  /* 交互:与皮肤同款 —— 指针移动光晕,左键冲击波 */
+  window.addEventListener("pointermove", function (e) { engine.lightAt(e.clientX, e.clientY); });
+  window.addEventListener("pointerdown", function (e) {
+    if (e.button === 0) engine.shock(e.clientX, e.clientY);
+  });
+
+  /* 窗口尺寸变化 → 重建网格(防抖) */
+  var t = 0;
+  window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(function () { engine.resize(); }, 200); });
+
+  engine.init(true);
+
+  /* demo 模式:自动放三波,供无头截图验证涟漪与推飞 */
+  if (qs.get("demo") === "1") {
+    var banner = document.createElement("div");
+    banner.className = "demo-banner";
+    banner.textContent = "DEMO: shockwaves @ 800/1400/2200 ms";
+    document.body.appendChild(banner);
+    setTimeout(function () { engine.shock(innerWidth * 0.30, innerHeight * 0.40); }, 800);
+    setTimeout(function () { engine.shock(innerWidth * 0.72, innerHeight * 0.62); }, 1400);
+    setTimeout(function () { engine.shock(innerWidth * 0.50, innerHeight * 0.25); }, 2200);
+  }
+
+  /* 像素自检:?selftest=1 → 3s 后采样画布,把量化结果写进 DOM 供无视觉环境验证 */
+  if (qs.get("selftest") === "1") {
+    var report = document.createElement("div");
+    report.id = "selftest";
+    report.style.cssText = "position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:20;color:#fff;font:12px Consolas,monospace;background:rgba(0,0,0,.7);padding:6px 10px;border:1px solid #888;max-width:80vw;";
+    report.textContent = "selftest pending…";
+    document.body.appendChild(report);
+    setTimeout(function () {
+      try {
+        var w = canvas.width, h = canvas.height;
+        var g = canvas.getContext("2d");
+        var img = g.getImageData(0, 0, w, h).data;
+        var lit = 0, total = 0, colors = {}, greens = 0;
+        for (var y = 0; y < h; y += 4) {
+          for (var x = 0; x < w; x += 4) {
+            var i = (y * w + x) * 4;
+            total++;
+            var r = img[i], gg = img[i + 1], b = img[i + 2];
+            if (r + gg + b > 40) {
+              lit++;
+              var key = (r >> 4) + "," + (gg >> 4) + "," + (b >> 4);
+              colors[key] = 1;
+              if (gg > 120 && gg > r + 30) greens++;
+            }
+          }
+        }
+        var s = engine.getStats();
+        report.textContent = "SELFTEST lit=" + (100 * lit / total).toFixed(1) + "%" +
+          " colors=" + Object.keys(colors).length +
+          " greenPx=" + greens +
+          " grid=" + s.NC + "x" + s.NR +
+          " running=" + s.running;
+      } catch (err) {
+        report.textContent = "SELFTEST ERROR " + err.message;
+      }
+    }, 3000);
+  }
+
+  /* HUD:状态+简易 FPS */
+  var frames = 0, last = performance.now(), hud = document.getElementById("hud");
+  (function tick(now) {
+    frames++;
+    if (now - last >= 1000) {
+      var s = engine.getStats();
+      hud.textContent = "fps " + frames + " · grid " + s.NC + "x" + s.NR + " · shocks " + s.shocks + " · " + (s.running ? "running" : "paused");
+      frames = 0; last = now;
+    }
+    requestAnimationFrame(tick);
+  })(last);
+
+  /* 控制面板 */
+  function bind(id, fn) { var el = document.getElementById(id); el.addEventListener("input", function () { fn(el); }); el.addEventListener("change", function () { fn(el); }); }
+  bind("palette", function (el) { engine.setOptions({ palette: el.value }); });
+  bind("speed", function (el) { engine.setOptions({ frameMs: clampFrame(96 - +el.value) }); });
+  function clampFrame(v) { return Math.max(16, Math.min(80, v)); }
+  bind("density", function (el) { engine.setOptions({ density: +el.value / 100 }); });
+  bind("scale", function (el) { engine.setOptions({ cellScale: +el.value / 100 }); });
+  bind("interaction", function (el) { engine.setOptions({ interaction: el.checked }); });
+  bind("mode", function (el) {
+    /* alpha 上下文不可热切,演示用刷新 */
+    location.search = "?palette=" + document.getElementById("palette").value + (el.value === "overlay" ? "&mode=overlay" : "");
+  });
+  if (qs.get("mode") === "overlay") {
+    /* overlay 演示:白底黑字界面元素之上叠加透明雨 */
+    document.body.style.background = "#dfe6df";
+    document.querySelector(".panel").style.background = "rgba(255,255,255,.8)";
+  }
+})();
+</script>
+</body>
+</html>

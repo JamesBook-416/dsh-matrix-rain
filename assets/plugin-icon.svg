@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="12" fill="#041006"/>
+  <g font-family="Consolas, Menlo, monospace" font-weight="bold" text-anchor="middle">
+    <text x="10" y="16" font-size="10" fill="#0a3f1c">0</text>
+    <text x="10" y="26" font-size="10" fill="#0f6b30">1</text>
+    <text x="10" y="36" font-size="10" fill="#14a04a">Z</text>
+    <text x="10" y="46" font-size="10" fill="#00ff41">7</text>
+    <text x="10" y="56" font-size="10" fill="#0f6b30">0</text>
+    <text x="24" y="12" font-size="10" fill="#0a3f1c">K</text>
+    <text x="24" y="22" font-size="10" fill="#14a04a">3</text>
+    <text x="24" y="32" font-size="10" fill="#00ff41">A</text>
+    <text x="24" y="42" font-size="10" fill="#0f6b30">X</text>
+    <text x="24" y="52" font-size="10" fill="#0a3f1c">4</text>
+    <text x="38" y="18" font-size="10" fill="#0f6b30">9</text>
+    <text x="38" y="28" font-size="10" fill="#00ff41">Q</text>
+    <text x="38" y="38" font-size="10" fill="#14a04a">D</text>
+    <text x="38" y="48" font-size="10" fill="#0a3f1c">1</text>
+    <text x="52" y="14" font-size="10" fill="#0a3f1c">W</text>
+    <text x="52" y="24" font-size="10" fill="#0f6b30">8</text>
+    <text x="52" y="34" font-size="10" fill="#00ff41">T</text>
+    <text x="52" y="44" font-size="10" fill="#14a04a">5</text>
+    <text x="52" y="54" font-size="10" fill="#0a3f1c">R</text>
+  </g>
+</svg>

@@ -1,0 +1,7 @@
+# matrix-rain bundle patch: inserts its public dsh.client entry into the web plugin roster.
+# v0.5.0 standalone: the rain is an independent layer that co-exists with any skin,
+# so the entry id no longer uses the ui-skin-* prefix (skin-manager owned namespace)
+# and the package no longer ships skin.json.
+- insert:
+    - id: matrix-rain
+      name: 'dsh-matrix-rain'

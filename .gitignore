@@ -1,0 +1,17 @@
+# 录屏原始帧与临时产物不入库
+shots/
+*.log
+node_modules/
+.edge-*/
+.DS_Store
+Thumbs.db
+
+# scripts 只保留可复用管线(构建/校验/服务/GIF采集/取证),一次性诊断探针不入库
+scripts/*
+!scripts/build-client.mjs
+!scripts/validate.mjs
+!scripts/serve.mjs
+!scripts/capture.mjs
+!scripts/assemble.ps1
+!scripts/read-localstorage.mjs
+!scripts/debug-harness.mjs

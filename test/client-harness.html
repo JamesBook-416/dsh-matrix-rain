@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>matrix-rain client harness v3</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #101214; }
+  :root {
+    --dsw-alias-bg-base: #101214;
+    --dsw-alias-bg-layer-1: #16181a;
+    --dsw-alias-bg-layer-2: #1c1e21;
+    --dsw-alias-bg-overlay: #202326;
+    --dsw-specific-sidebar-fill: #0c0e10;
+    --dsw-alias-border-l1: #2a2d31;
+    --dsw-alias-border-l2: #3a3e43;
+  }
+  #log {
+    position: fixed; left: 8px; top: 8px; z-index: 2147483647;
+    font: 12px/1.5 Consolas, monospace; color: #0f0; background: rgba(0,0,0,.88);
+    padding: 8px 10px; border: 1px solid #0a5; max-width: 72vw; white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+<div id="log">boot…</div>
+<script>
+window.__ModuleLoader__ = {
+  _mods: {},
+  load: function (def) {
+    this._mods[def.id] = { factory: def.factory };
+    try {
+      def.factory(window.__TEST__.require);
+      setTimeout(function tick() {
+        if (window.__TEST__ && window.__TEST__.onLoaded) window.__TEST__.onLoaded(def.id);
+        else setTimeout(tick, 10);
+      }, 0);
+    } catch (e) {
+      setTimeout(function tickFail() {
+        if (window.__TEST__ && window.__TEST__.fail) window.__TEST__.fail("factory threw: " + e.message);
+        else setTimeout(tickFail, 10);
+      }, 0);
+    }
+  },
+};
+window.__TEST__ = {
+  results: [], failCount: 0,
+  say: function (m) { this.results.push(m); render(); },
+  check: function (name, ok) { this.results.push((ok ? "PASS " : "FAIL ") + name); render(); if (!ok) this.failCount++; },
+  fail: function (m) { this.results.push("FAIL " + m); render(); this.failCount++; },
+  done: false,
+  require: function (name) {
+    if (name === "react") {
+      var stateVal = null, stateSetters = [], effectFns = [];
+      return {
+        useState: function (init) {
+          if (stateVal === null) stateVal = typeof init === "function" ? init() : init;
+          var idx = stateSetters.length;
+          stateSetters.push(function (v) { stateVal = typeof v === "function" ? v(stateVal) : v; });
+          return [stateVal, stateSetters[idx]];
+        },
+        useEffect: function (fn) { effectFns.push(fn); return function () {}; },
+        useRef: function (init) { return { current: init }; },
+        useCallback: function (fn) { return fn; },
+      };
+    }
+    if (name === "react/jsx-runtime") {
+      return {
+        jsx: function (tag, props) { return { t: tag, p: props }; },
+        jsxs: function (tag, props) { return { t: tag, p: props }; },
+      };
+    }
+    throw new Error("no require stub for " + name);
+  },
+};
+function render() {
+  document.getElementById("log").textContent =
+    "MATRIX-RAIN CLIENT TEST v3\n" + window.__TEST__.results.join("\n") +
+    (window.__TEST__.done ? "\n== DONE failCount=" + window.__TEST__.failCount + " ==" : "");
+}
+var registerEvents = [];
+window.addEventListener("dsh:skin-customization-register-v2", function (e) {
+  registerEvents.push(e.detail);
+  try {
+    e.detail.definition.apply({ values: { master: true }, visibility: { schedule: true } });
+  } catch (err) { window.__TEST__.fail("manager apply threw: " + err.message); }
+});
+</script>
+<script src="../lib/client.js"></script>
+<script>
+(function () {
+  var T = window.__TEST__;
+  var effects = [], slotRegistrations = [];
+
+  T.onLoaded = function (id) {
+    T.check("module loaded", id === "dsh-matrix-rain");
+    var captured = window.__ModuleLoader__._mods["dsh-matrix-rain"];
+    var returned;
+    try {
+      returned = captured.factory(window.__TEST__.require);
+      T.check("factory returns exports", returned && typeof returned.apply === "function");
+      T.check("exports.inject = [slots]", Array.isArray(returned.inject) && returned.inject[0] === "slots");
+    } catch (e) { T.fail("second factory run: " + e.message); return; }
+
+    try {
+      localStorage.removeItem("dsh-skin-matrix-rain:config:v1");
+      localStorage.setItem("dsh-skin-matrix-rain:config:v1", JSON.stringify({ v: 4, master: true, timing: "always" }));
+    } catch (e) { /* noop */ }
+
+    var ctx = {
+      effect: function (fn, label) { effects.push(fn); return function () {}; },
+      slots: {
+        inject: function (slot, reg) {
+          slotRegistrations.push({ slot: slot });
+          var disposable = reg();
+          return typeof disposable === "function" ? disposable : undefined;
+        },
+        register: function (meta, Component) { slotRegistrations.push(meta); return function () {}; },
+      },
+    };
+    try { returned.apply(ctx); } catch (e) { T.fail("apply threw: " + e.message); return; }
+    T.check("apply no-throw with slots", true);
+    var canvas = document.querySelector('[data-skin-chrome="matrix-rain"]');
+    var backdrop = document.querySelector('[data-skin-chrome="matrix-rain-backdrop"]');
+    T.check("canvas mounted", !!canvas);
+    T.check("backdrop mounted", !!backdrop);
+    T.check("backdrop default OFF", backdrop.style.display === "none");
+    T.check("standalone: no customization registered", registerEvents.length === 0);
+    var settingsReg = slotRegistrations.find(function (r) { return r.name === "settings.section"; });
+    T.check("settings.section registered", !!settingsReg);
+    T.check("settings meta (id/order/label)", settingsReg && settingsReg.id === "matrix-rain"
+      && typeof settingsReg.order === "number" && typeof settingsReg.label === "function");
+
+    setTimeout(function () {
+      T.check("always-mode canvas visible", canvas.style.display === "block");
+
+      var cfg = JSON.parse(localStorage.getItem("dsh-skin-matrix-rain:config:v1") || "{}");
+      cfg.timing = "task"; cfg.master = false;
+      localStorage.setItem("dsh-skin-matrix-rain:config:v1", JSON.stringify(cfg));
+      window.dispatchEvent(new CustomEvent("dsh-matrix-rain:config"));
+      setTimeout(function () {
+        T.check("gated off after grace (master=false, task idle)", canvas.style.display === "none");
+        window.dispatchEvent(new CustomEvent("dsh-matrix-rain:preview", { detail: { ms: 1500 } }));
+        T.check("preview forces visible", canvas.style.display === "block");
+        setTimeout(function () {
+          T.check("preview expiry restores gate (past grace)", canvas.style.display === "none");
+
+          cfg = JSON.parse(localStorage.getItem("dsh-skin-matrix-rain:config:v1"));
+          delete cfg.v;
+          cfg.backdrop = { enabled: true, color: "#123456", alpha: 0.5 };
+          cfg.frameMs = 20; cfg.master = true; cfg.timing = "always";
+          localStorage.setItem("dsh-skin-matrix-rain:config:v1", JSON.stringify(cfg));
+          window.dispatchEvent(new CustomEvent("dsh-matrix-rain:config"));
+          var c2 = JSON.parse(localStorage.getItem("dsh-skin-matrix-rain:config:v1"));
+          T.check("v4 migration resets backdrop off", c2.backdrop.enabled === false && c2.v === 4);
+          T.check("v4 migration frameMs20->speedMult2", Math.abs((c2.speedMult || 0) - 2) < 0.01 && c2.frameMs === undefined);
+
+          cfg = JSON.parse(localStorage.getItem("dsh-skin-matrix-rain:config:v1"));
+          cfg.uiTint = { enabled: true, color: "#0d5c2e", strength: 0.25 };
+          localStorage.setItem("dsh-skin-matrix-rain:config:v1", JSON.stringify(cfg));
+          window.dispatchEvent(new CustomEvent("dsh-matrix-rain:config"));
+          var tinted = document.body.style.getPropertyValue("--dsw-alias-bg-base");
+          T.check("ui-tint applies color-mix", tinted.indexOf("color-mix") >= 0 && tinted.indexOf("#0d5c2e") >= 0);
+          cfg.uiTint.enabled = false;
+          localStorage.setItem("dsh-skin-matrix-rain:config:v1", JSON.stringify(cfg));
+          window.dispatchEvent(new CustomEvent("dsh-matrix-rain:config"));
+          T.check("ui-tint disabled restores", document.body.style.getPropertyValue("--dsw-alias-bg-base") === "");
+
+          var conv = document.createElement("div");
+          conv.setAttribute("data-phase", "active");
+          conv.innerHTML = '<div data-conversation-scroll><div data-chat-flow>' +
+            '<div data-chat-flow-kind="assistant"><div data-state="running"></div><span>gen 42.5 tok/s 12s</span></div></div></div>';
+          document.body.appendChild(conv);
+          cfg = JSON.parse(localStorage.getItem("dsh-skin-matrix-rain:config:v1"));
+          cfg.timing = "task"; cfg.tpsAdaptive = true; cfg.master = true;
+          localStorage.setItem("dsh-skin-matrix-rain:config:v1", JSON.stringify(cfg));
+          window.dispatchEvent(new CustomEvent("dsh-matrix-rain:config"));
+
+          setTimeout(function () {
+            T.check("task-mode running (throttled observer fired)", canvas.style.display === "block");
+            T.check("body status dataset", document.body.dataset.matrixRainStatus === "running"
+              && document.body.dataset.matrixRainTask === "working");
+            T.check("tps parsed (42.5)", document.body.dataset.matrixRainTps === "42.5");
+
+            var storm = setInterval(function () {
+              conv.querySelector("span").textContent = "gen 43 tok/s " + Date.now();
+            }, 40);
+            setTimeout(function () {
+              clearInterval(storm);
+              T.check("mutation storm keeps task=working", document.body.dataset.matrixRainTask === "working");
+
+              conv.setAttribute("data-phase", "hero");
+              conv.querySelector("[data-state='running']").removeAttribute("data-state");
+              setTimeout(function () {
+                T.check("task-idle rain paused (past grace)", canvas.style.display === "none");
+
+                var conv2 = document.createElement("div");
+                conv2.setAttribute("data-phase", "active");
+                conv2.innerHTML = '<div data-conversation-scroll><div data-chat-flow>' +
+                  '<div data-chat-flow-kind="tool-call"><div data-state="running"></div></div>' +
+                  '<div data-chat-flow-kind="turn-tail"><span>done</span></div></div></div>';
+                document.body.appendChild(conv2);
+                setTimeout(function () {
+                  T.check("stale running marker ignored (turn-tail after)", canvas.style.display === "none"
+                    && document.body.dataset.matrixRainTask !== "working");
+                  conv2.remove();
+
+                  var tree1 = document.createElement("div");
+                  tree1.setAttribute("role", "treeitem");
+                  tree1.setAttribute("data-row-key", "workspace:ws-a");
+                  tree1.setAttribute("aria-expanded", "true");
+                  tree1.textContent = "wsA";
+                  var selRow = document.createElement("div");
+                  selRow.setAttribute("role", "treeitem");
+                  selRow.setAttribute("data-row-key", "session:session-cur");
+                  selRow.setAttribute("aria-selected", "true");
+                  selRow.textContent = "current-idle";
+                  var runRow = document.createElement("div");
+                  runRow.setAttribute("role", "treeitem");
+                  runRow.setAttribute("data-row-key", "session:session-run");
+                  runRow.innerHTML = '<div data-state="ongoing"></div>bg-running';
+                  var tree2 = document.createElement("div");
+                  tree2.setAttribute("role", "treeitem");
+                  tree2.setAttribute("data-row-key", "workspace:ws-b");
+                  tree2.textContent = "wsB";
+                  document.body.appendChild(tree1);
+                  document.body.appendChild(selRow);
+                  document.body.appendChild(runRow);
+                  document.body.appendChild(tree2);
+                  setTimeout(function () {
+                    T.check("ws-A running keeps rain on", canvas.style.display === "block"
+                      && document.body.dataset.matrixRainWs === "1");
+                    tree2.appendChild(runRow);
+                    setTimeout(function () {
+                      T.check("ongoing in OTHER ws pauses rain", canvas.style.display === "none"
+                        && document.body.dataset.matrixRainWs === "0");
+                      tree1.remove(); selRow.remove(); runRow.remove(); tree2.remove();
+                      setTimeout(function () {
+                        T.check("trees removed stays off", canvas.style.display === "none");
+
+                        cfg = JSON.parse(localStorage.getItem("dsh-skin-matrix-rain:config:v1"));
+                        cfg.timing = "always"; cfg.palette = "custom"; cfg.glyphColor = "#ff2a2a";
+                        cfg.rainArea = "transcript";
+                        localStorage.setItem("dsh-skin-matrix-rain:config:v1", JSON.stringify(cfg));
+                        window.dispatchEvent(new CustomEvent("dsh-matrix-rain:config"));
+                        setTimeout(function () {
+                          T.check("clip region applied", /inset\(/.test(canvas.style.clipPath || ""));
+                          T.check("backdrop clipped or off", /inset\(/.test(backdrop.style.clipPath || "") || backdrop.style.display === "none");
+
+                          try {
+                            effects.forEach(function (fn) { fn()(); });
+                            T.check("cleanup removes chrome", !document.querySelector('[data-skin-chrome="matrix-rain"]')
+                              && !document.querySelector('[data-skin-chrome="matrix-rain-backdrop"]')
+                              && !document.body.hasAttribute("data-dsh-matrix-rain"));
+                            T.check("cleanup restores ui-tint tokens", document.body.style.getPropertyValue("--dsw-alias-bg-base") === "");
+                          } catch (e) { T.fail("cleanup threw: " + e.message); }
+                          T.done = true; render();
+                        }, 1000);
+                      }, 1000);
+                    }, 2100);
+                  }, 1000);
+                }, 1000);
+              }, 2100);
+            }, 700);
+          }, 1400);
+        }, 3000);
+      }, 1400);
+    }, 600);
+  };
+})();
+</script>
+</body>
+</html>

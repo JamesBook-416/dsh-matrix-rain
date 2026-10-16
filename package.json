@@ -1,0 +1,34 @@
+{
+  "name": "dsh-matrix-rain",
+  "description": "Matrix digital-rain live skin for the DeepSeek Harness Web GUI, faithfully ported from a Win32 GDI screensaver; hover to light up glyphs, left-click anywhere for shockwaves.",
+  "icon": "assets/plugin-icon.svg",
+  "version": "0.5.6",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "license": "MIT",
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "assets/plugin-icon.svg",
+    "preview",
+    "LICENSE",
+    "README.md"
+  ]
+}
